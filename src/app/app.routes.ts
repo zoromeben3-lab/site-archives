@@ -37,6 +37,7 @@ export const routes: Routes = [
     children: [
       { path: 'tableau-de-bord', component: TableauDeBord },
       { path: 'archives', component: RechercheArchives },
+      { path: 'recherche-archives', redirectTo: 'archives', pathMatch: 'full' },
       { path: 'programme', component: Programme },
       { path: 'modules/:id', component: DetailModule },
       { path: 'mes-documents', component: MesDocuments },

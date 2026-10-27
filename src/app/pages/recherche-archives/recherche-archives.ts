@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { Archive, Donnees } from '../../services/donnees';
@@ -9,7 +9,7 @@ import { Archive, Donnees } from '../../services/donnees';
   templateUrl: './recherche-archives.html',
   styleUrl: './recherche-archives.css'
 })
-export class RechercheArchives {
+export class RechercheArchives implements OnInit {
   recherche = '';
   onglets = ['Tous', 'Devoir', 'Test', 'Épreuve de session'];
   ongletActif = 'Tous';
@@ -20,6 +20,10 @@ export class RechercheArchives {
   annee = 'Toutes';
 
   constructor(public donnees: Donnees) {}
+
+  ngOnInit() {
+    this.donnees.chargerArchivesDepuisApi();
+  }
 
   // Les modules proposés dépendent de la filière choisie
   modules(): string[] {
@@ -33,14 +37,27 @@ export class RechercheArchives {
 
   resultats(): Archive[] {
     const texte = this.recherche.trim().toLowerCase();
-    return this.donnees.archives().filter(a =>
-      (a.titre.toLowerCase().includes(texte) || a.module.toLowerCase().includes(texte)) &&
-      (this.ongletActif === 'Tous' || a.type === this.ongletActif) &&
-      (this.filiere === 'Toutes' || a.filiere === this.filiere) &&
-      (this.module === 'Tous' || a.module === this.module) &&
-      (this.niveau === 'Tous' || a.niveau === this.niveau) &&
-      (this.annee === 'Toutes' || a.annee === this.annee)
-    );
+    return this.donnees.archives().filter(a => {
+      const titreOk = !texte || (a.titre || '').toLowerCase().includes(texte) || (a.module || '').toLowerCase().includes(texte);
+
+      let typeOk = true;
+      if (this.ongletActif !== 'Tous') {
+        const typeFiltre = this.ongletActif.toLowerCase();
+        const typeArchive = (a.type || '').toLowerCase();
+        if (typeFiltre.includes('session') || typeFiltre.includes('preuve')) {
+          typeOk = typeArchive === 'examen' || typeArchive.includes('session');
+        } else {
+          typeOk = typeArchive === typeFiltre;
+        }
+      }
+
+      const filiereOk = this.filiere === 'Toutes' || (a.filiere || '').toLowerCase() === this.filiere.toLowerCase();
+      const moduleOk = this.module === 'Tous' || (a.module || '').toLowerCase() === this.module.toLowerCase();
+      const niveauOk = this.niveau === 'Tous' || (a.niveau || '').toLowerCase() === this.niveau.toLowerCase();
+      const anneeOk = this.annee === 'Toutes' || (a.annee || '').replace(/\s+/g, '') === this.annee.replace(/\s+/g, '');
+
+      return titreOk && typeOk && filiereOk && moduleOk && niveauOk && anneeOk;
+    });
   }
 
   telecharger(a: Archive) {

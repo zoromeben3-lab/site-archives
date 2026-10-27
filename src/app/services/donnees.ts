@@ -1,38 +1,25 @@
 import { Injectable, signal } from '@angular/core';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Authentification, Role } from './authentification';
+import { Observable, tap } from 'rxjs';
 
 export interface Filiere { nom: string; dossier: string; }
 export interface Module { id: number; nom: string; filiere: string; niveau: string; semestre: string; credits: number; }
 export interface Archive {
-  id: number; titre: string; type: string; filiere: string; module: string;
-  niveau: string; semestre: string; annee: string; date: string; fichier: string;
+  id: number;
+  titre: string;
+  type: string;
+  filiere: string;
+  module: string;
+  niveau: string;
+  semestre?: string;
+  annee: string;
+  date: string;
+  fichier: string;
+  description?: string;
 }
 export interface Compte { id: number; prenom: string; nom: string; identifiant: string; role: Role; actif: boolean; }
 export interface Telechargement { titre: string; fichier: string; date: string; }
-
-const FICHIER_EXEMPLE = '/fichiers/exemple.pdf';
-
-const MODULES_INIT: Module[] = [
-  { id: 1, nom: 'Mathématiques appliquées', filiere: 'Génie Informatique', niveau: 'Licence 1', semestre: 'Semestre 1', credits: 6 },
-  { id: 2, nom: "Introduction à l'informatique", filiere: 'Génie Informatique', niveau: 'Licence 1', semestre: 'Semestre 1', credits: 6 },
-  { id: 3, nom: 'Algorithmique', filiere: 'Génie Informatique', niveau: 'Licence 1', semestre: 'Semestre 2', credits: 6 },
-  { id: 4, nom: 'Base de données', filiere: 'Réseaux et systèmes', niveau: 'Licence 2', semestre: 'Semestre 3', credits: 6 },
-  { id: 5, nom: 'Systèmes d’exploitation', filiere: 'Réseaux et systèmes', niveau: 'Licence 2', semestre: 'Semestre 4', credits: 6 },
-  { id: 6, nom: 'Réseaux', filiere: 'Réseaux et télécommunications', niveau: 'Licence 1', semestre: 'Semestre 1', credits: 6 },
-  { id: 7, nom: 'Télécommunications', filiere: 'Réseaux et télécommunications', niveau: 'Licence 1', semestre: 'Semestre 2', credits: 6 },
-  { id: 8, nom: 'Électricité générale', filiere: 'Électricité industrielle', niveau: 'Licence 1', semestre: 'Semestre 1', credits: 6 },
-  { id: 9, nom: 'Électronique de base', filiere: 'Électronique, électrotechnique et automatisme', niveau: 'Licence 1', semestre: 'Semestre 1', credits: 6 }
-];
-
-const ARCHIVES_INIT: Archive[] = [
-  { id: 1, titre: 'Mathématiques appliquées - Devoir 1', type: 'Devoir', filiere: 'Génie Informatique', module: 'Mathématiques appliquées', niveau: 'Licence 1', semestre: 'Semestre 1', annee: '2024 - 2025', date: '15 sept. 2024', fichier: FICHIER_EXEMPLE },
-  { id: 2, titre: "Introduction à l'informatique - Test", type: 'Test', filiere: 'Génie Informatique', module: "Introduction à l'informatique", niveau: 'Licence 1', semestre: 'Semestre 1', annee: '2024 - 2025', date: '10 oct. 2024', fichier: FICHIER_EXEMPLE },
-  { id: 3, titre: 'Algorithmique - Épreuve de session', type: 'Épreuve de session', filiere: 'Génie Informatique', module: 'Algorithmique', niveau: 'Licence 1', semestre: 'Semestre 2', annee: '2024 - 2025', date: '20 févr. 2025', fichier: FICHIER_EXEMPLE },
-  { id: 4, titre: 'Base de données - Devoir 2', type: 'Devoir', filiere: 'Réseaux et systèmes', module: 'Base de données', niveau: 'Licence 2', semestre: 'Semestre 3', annee: '2023 - 2024', date: '12 déc. 2023', fichier: FICHIER_EXEMPLE },
-  { id: 5, titre: 'Algorithmique - Devoir 1 (structures de données)', type: 'Devoir', filiere: 'Génie Informatique', module: 'Algorithmique', niveau: 'Licence 1', semestre: 'Semestre 2', annee: '2024 - 2025', date: '15 oct. 2024', fichier: FICHIER_EXEMPLE },
-  { id: 6, titre: 'Algorithmique - Devoir 2 (algorithmes de tri)', type: 'Devoir', filiere: 'Génie Informatique', module: 'Algorithmique', niveau: 'Licence 1', semestre: 'Semestre 2', annee: '2024 - 2025', date: '28 nov. 2024', fichier: FICHIER_EXEMPLE },
-  { id: 7, titre: 'Algorithmique - Test 1 (complexité)', type: 'Test', filiere: 'Génie Informatique', module: 'Algorithmique', niveau: 'Licence 1', semestre: 'Semestre 2', annee: '2024 - 2025', date: '10 janv. 2025', fichier: FICHIER_EXEMPLE }
-];
 
 const COMPTES_INIT: Compte[] = [
   { id: 1, prenom: 'Aïssatou', nom: 'Diallo', identifiant: 'etudiant', role: 'etudiant', actif: true },
@@ -42,15 +29,10 @@ const COMPTES_INIT: Compte[] = [
   { id: 5, prenom: 'Aminata', nom: 'Sanogo', identifiant: 'a.sanogo', role: 'etudiant', actif: true }
 ];
 
-/**
- * Données de l'application, gardées dans le navigateur en attendant l'API.
- * - modules, comptes, téléchargements : conservés dans le navigateur (localStorage)
- * - archives et programmes ajoutés : gardés en mémoire seulement (les fichiers
- *   ne peuvent pas être enregistrés sans serveur), ils disparaissent au rechargement.
- * Quand l'API existera, seules les méthodes de ce service changeront.
- */
 @Injectable({ providedIn: 'root' })
 export class Donnees {
+  private apiUrl = 'http://127.0.0.1:8000/api';
+
   readonly filieres: Filiere[] = [
     { nom: 'Génie Informatique', dossier: 'genie-informatique' },
     { nom: 'Réseaux et systèmes', dossier: 'reseaux-systemes' },
@@ -58,6 +40,7 @@ export class Donnees {
     { nom: 'Électricité industrielle', dossier: 'electricite-industrielle' },
     { nom: 'Électronique, électrotechnique et automatisme', dossier: 'electronique-electrotechnique-automatisme' }
   ];
+
   readonly niveaux = ['Licence 1', 'Licence 2', 'Licence 3'];
   readonly semestresParNiveau: Record<string, string[]> = {
     'Licence 1': ['Semestre 1', 'Semestre 2'],
@@ -67,15 +50,19 @@ export class Donnees {
   readonly types = ['Devoir', 'Test', 'Épreuve de session'];
   readonly annees = ['2024 - 2025', '2023 - 2024'];
 
-  readonly modules = signal<Module[]>(this.lire('modules', MODULES_INIT));
+  // Signals Angular réactifs
+  readonly modules = signal<Module[]>(this.lire('modules', []));
   readonly comptes = signal<Compte[]>(this.lire('comptes', COMPTES_INIT));
-  readonly archives = signal<Archive[]>(ARCHIVES_INIT);
+  readonly archives = signal<Archive[]>([]);
   readonly programmes = signal<Record<string, string>>({});
   private readonly historique = signal<Record<string, Telechargement[]>>(this.lire('telechargements', {}));
 
-  constructor(private auth: Authentification) {}
+  constructor(private http: HttpClient, private auth: Authentification) {
+    this.chargerModulesDepuisApi();
+    this.chargerArchivesDepuisApi();
+  }
 
-  // ---------- Utilitaires ----------
+  // ---------- Utilitaires de stockage ----------
   private lire<T>(cle: string, defaut: T): T {
     try {
       const texte = localStorage.getItem('donnees.' + cle);
@@ -89,7 +76,7 @@ export class Donnees {
     try {
       localStorage.setItem('donnees.' + cle, JSON.stringify(valeur));
     } catch {
-      /* stockage plein ou bloqué : on ignore */
+      /* ignore */
     }
   }
 
@@ -105,10 +92,63 @@ export class Donnees {
     return this.semestresParNiveau[niveau] ?? [];
   }
 
+  private obtenirOptionsAuth() {
+    const jeton = this.auth.jeton();
+    return {
+      headers: new HttpHeaders(jeton ? { Authorization: `Bearer ${jeton}` } : {})
+    };
+  }
+
+  // ---------- Chargement depuis l'API Laravel ----------
+  chargerArchivesDepuisApi() {
+    this.http.get<{ status: string; data: { data: Archive[] } }>(`${this.apiUrl}/archives`).subscribe({
+      next: (reponse) => {
+        if (reponse.data && reponse.data.data) {
+          this.archives.set(reponse.data.data);
+        }
+      },
+      error: (err) => console.error('Erreur chargement archives:', err)
+    });
+  }
+
+  chargerModulesDepuisApi() {
+    this.http.get<{ status: string; data: any[] }>(`${this.apiUrl}/modules`).subscribe({
+      next: (reponse) => {
+        if (reponse.data) {
+          const formates: Module[] = reponse.data.map(m => ({
+            id: m.id,
+            nom: m.nom,
+            filiere: m.filiere?.nom ?? '',
+            niveau: m.niveau?.intitule ?? m.niveau?.code ?? '',
+            semestre: 'Semestre 1',
+            credits: 6
+          }));
+          this.modules.set(formates);
+          this.ecrire('modules', formates);
+        }
+      },
+      error: (err) => console.error('Erreur chargement modules:', err)
+    });
+  }
+
   // ---------- Modules ----------
   modulesDeFiliere(filiere: string, niveau = ''): string[] {
+    const filiereCherchee = (filiere || '').trim().toLowerCase();
+    const niveauCherche = (niveau || '').trim().toLowerCase();
+
     return this.modules()
-      .filter(m => m.filiere === filiere && (!niveau || m.niveau === niveau))
+      .filter(m => {
+        const nomFiliere = (m.filiere || '').trim().toLowerCase();
+        const nomNiveau = (m.niveau || '').trim().toLowerCase();
+
+        const filiereOk = !filiereCherchee || nomFiliere === filiereCherchee;
+        const niveauOk = !niveauCherche || nomNiveau === niveauCherche ||
+          (niveauCherche.includes('1') && nomNiveau.includes('1')) ||
+          (niveauCherche.includes('2') && nomNiveau.includes('2')) ||
+          (niveauCherche.includes('3') && nomNiveau.includes('3'));
+
+        return filiereOk && niveauOk;
+      })
       .map(m => m.nom);
   }
 
@@ -125,11 +165,25 @@ export class Donnees {
   }
 
   // ---------- Archives ----------
+  ajouterArchiveApi(formData: FormData): Observable<any> {
+    return this.http.post(`${this.apiUrl}/archives`, formData, this.obtenirOptionsAuth()).pipe(
+      tap(() => {
+        this.chargerArchivesDepuisApi();
+      })
+    );
+  }
+
   ajouterArchive(a: Omit<Archive, 'id' | 'date'>) {
     this.archives.set([
       { ...a, id: this.prochainId(this.archives()), date: this.aujourdhui() },
       ...this.archives()
     ]);
+  }
+
+  supprimerArchiveApi(id: number): Observable<any> {
+    return this.http.delete(`${this.apiUrl}/archives/${id}`, this.obtenirOptionsAuth()).pipe(
+      tap(() => this.chargerArchivesDepuisApi())
+    );
   }
 
   // ---------- Programmes ----------
@@ -168,7 +222,7 @@ export class Donnees {
     this.ecrire('comptes', liste);
   }
 
-  // ---------- Téléchargements de l'utilisateur connecté ----------
+  // ---------- Téléchargements ----------
   private cleUtilisateur(): string {
     const u = this.auth.utilisateur();
     return u ? `${u.prenom} ${u.nom}` : '';

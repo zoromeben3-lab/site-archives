@@ -24,6 +24,7 @@ export class AjoutArchive {
   survol = false;
   erreur = '';
   succes = '';
+  envoiEnCours = false;
 
   readonly extensionsOk = ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'];
   readonly tailleMax = 10 * 1024 * 1024; // 10 Mo
@@ -89,11 +90,11 @@ export class AjoutArchive {
     this.erreurFichier = '';
   }
 
-  // Le formulaire
+  // Le formulaire avec envoi réel vers l'API Laravel
   ajouter() {
     this.succes = '';
 
-    if (!this.filiere || !this.niveau || !this.semestre || !this.annee ||
+    if (!this.filiere || !this.niveau || !this.annee ||
         !this.module || !this.type || !this.titre.trim()) {
       this.erreur = 'Veuillez remplir tous les champs obligatoires.';
       return;
@@ -104,20 +105,45 @@ export class AjoutArchive {
     }
 
     this.erreur = '';
-    // Sans serveur, le fichier reste en mémoire jusqu'au rechargement de la page.
-    // Avec l'API, il sera envoyé au back-end ici.
-    this.donnees.ajouterArchive({
-      titre: this.titre.trim(),
-      type: this.type,
-      filiere: this.filiere,
-      module: this.module,
-      niveau: this.niveau,
-      semestre: this.semestre,
-      annee: this.annee,
-      fichier: URL.createObjectURL(this.fichier)
+    this.envoiEnCours = true;
+
+    // Construction du paquet multipart/form-data
+    const formData = new FormData();
+    formData.append('titre', this.titre.trim());
+    formData.append('type', this.type === 'Épreuve de session' ? 'examen' : this.type.toLowerCase());
+    formData.append('filiere', this.filiere);
+    formData.append('module', this.module);
+    formData.append('niveau', this.niveau);
+    formData.append('annee', this.annee);
+    formData.append('description', this.description);
+    formData.append('file', this.fichier);
+
+    const modTrouve = this.donnees.modules().find(m => m.nom.trim().toLowerCase() === this.module.trim().toLowerCase());
+    if (modTrouve) {
+      formData.append('module_id', modTrouve.id.toString());
+    }
+
+    // Envoi à l'API Laravel
+    this.donnees.ajouterArchiveApi(formData).subscribe({
+      next: (reponse) => {
+        this.envoiEnCours = false;
+        this.succes = 'Document archivé et enregistré avec succès sur le serveur !';
+        this.reinitialiser();
+        setTimeout(() => {
+          this.router.navigate(['/archives']);
+        }, 1500);
+      },
+      error: (err) => {
+        this.envoiEnCours = false;
+        if (err.status === 403) {
+          this.erreur = 'Action non autorisée : en tant que chef de filière, vous ne pouvez déposer des épreuves que pour votre propre filière !';
+        } else if (err.error && err.error.message) {
+          this.erreur = err.error.message;
+        } else {
+          this.erreur = 'Une erreur est survenue lors de l\'envoi du fichier au serveur.';
+        }
+      }
     });
-    this.succes = 'Archive ajoutée. Elle apparaît maintenant dans la recherche.';
-    this.reinitialiser();
   }
 
   annuler() {

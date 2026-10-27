@@ -1,14 +1,7 @@
 import { Component } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { Authentification, Role } from '../../services/authentification';
-
-// COMPTES DE TEST : à supprimer quand l'API sera branchée
-const COMPTES_TEST: { id: string; mdp: string; prenom: string; nom: string; role: Role }[] = [
-  { id: 'etudiant', mdp: 'etudiant123', prenom: 'Aïssatou', nom: 'Diallo', role: 'etudiant' },
-  { id: 'chef.info', mdp: 'chef12345', prenom: 'Moussa', nom: 'Traoré', role: 'chef' },
-  { id: 'admin', mdp: 'admin12345', prenom: 'Fatou', nom: 'Ouattara', role: 'admin' }
-];
+import { Authentification } from '../../services/authentification';
 
 @Component({
   selector: 'app-connexion',
@@ -22,6 +15,7 @@ export class Connexion {
   souvenir = false;
   erreur = '';
   afficherMdp = false;
+  chargement = false;
 
   constructor(private router: Router, private auth: Authentification) {}
 
@@ -35,25 +29,25 @@ export class Connexion {
       return;
     }
 
-    const motif = /^[a-zA-Z0-9._@-]{3,50}$/;
-    if (!motif.test(this.identifiant.trim())) {
-      this.erreur = 'Identifiant invalide.';
-      return;
-    }
-
-    const id = this.identifiant.trim().toLowerCase();
-    const compte = COMPTES_TEST.find(c => c.id === id && c.mdp === this.mdp);
-
-    if (!compte) {
-      this.erreur = 'Identifiant ou mot de passe incorrect.';
-      return;
-    }
-
     this.erreur = '';
-    this.auth.connecter(
-      { prenom: compte.prenom, nom: compte.nom, role: compte.role },
-      this.souvenir
-    );
-    this.router.navigate(['/tableau-de-bord']);
+    this.chargement = true;
+
+    // Appel réel vers l'API Laravel
+    this.auth.seConnecterApi(this.identifiant, this.mdp, this.souvenir).subscribe({
+      next: (reponse) => {
+        this.chargement = false;
+        // Connexion réussie -> Redirection vers le tableau de bord
+        this.router.navigate(['/tableau-de-bord']);
+      },
+      error: (err) => {
+        this.chargement = false;
+        // Erreur renvoyée par Laravel (identifiant faux, mot de passe incorrect...)
+        if (err.error && err.error.message) {
+          this.erreur = err.error.message;
+        } else {
+          this.erreur = 'Impossible de joindre le serveur. Vérifiez que votre API Laravel est bien lancée.';
+        }
+      }
+    });
   }
 }
