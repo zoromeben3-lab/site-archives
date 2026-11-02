@@ -9,15 +9,24 @@ import { Donnees, Telechargement } from '../../services/donnees';
   styleUrl: './mes-documents.css'
 })
 export class MesDocuments {
+  modaleVisible = false;
+
   constructor(private donnees: Donnees) {}
 
   liste(): Telechargement[] {
     return this.donnees.mesTelechargements();
   }
 
-  vider() {
-    if (confirm('Vider la liste de vos documents téléchargés ?')) {
-      this.donnees.viderTelechargements();
-    }
+  demanderVider() {
+    this.modaleVisible = true;
+  }
+
+  annulerVider() {
+    this.modaleVisible = false;
+  }
+
+  confirmerVider() {
+    this.donnees.viderTelechargements();
+    this.modaleVisible = false;
   }
 }

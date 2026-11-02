@@ -131,7 +131,13 @@ select:focus {
     align-items: stretch;
   }
 
-  .archive .bouton {
+  .archive-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .archive .bouton,
+  .archive .bouton-apercu {
     width: 100%;
   }
 }
@@ -199,4 +205,31 @@ a.bouton {
   margin: 0;
   font-size: 14px;
   color: #4b5563;
+}
+
+.archive-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bouton-apercu {
+  padding: 10px 18px;
+  background: #f1f5f9;
+  color: #1e40af;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  text-decoration: none;
+  text-align: center;
+  display: inline-block;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.bouton-apercu:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
 }

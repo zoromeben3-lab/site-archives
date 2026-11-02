@@ -90,7 +90,7 @@
             <td>{{ m.niveau }}</td>
             <td>{{ m.semestre }}</td>
             <td>{{ m.credits }}</td>
-            <td><button type="button" class="retirer" (click)="supprimer(m)">Supprimer</button></td>
+            <td><button type="button" class="retirer" (click)="demanderSuppression(m)">Supprimer</button></td>
           </tr>
         } @empty {
           <tr><td colspan="6" class="vide">Aucun module pour cette filière.</td></tr>
@@ -99,3 +99,23 @@
     </table>
   </div>
 </section>
+
+@if (moduleASupprimer) {
+  <div class="fond-modale" (click)="annulerSuppression()" role="dialog" aria-modal="true">
+    <div class="boite-modale" (click)="$event.stopPropagation()">
+      <div class="icone-modale">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/>
+          <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+      </div>
+      <h3>Supprimer le module</h3>
+      <p>Voulez-vous vraiment supprimer le module « {{ moduleASupprimer.nom }} » ? Cette action est irréversible.</p>
+      <div class="actions-modale">
+        <button type="button" class="bouton-clair" (click)="annulerSuppression()">Annuler</button>
+        <button type="button" class="bouton-danger" (click)="confirmerSuppression()">Supprimer</button>
+      </div>
+    </div>
+  </div>
+}

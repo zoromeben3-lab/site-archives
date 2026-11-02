@@ -19,7 +19,10 @@
         <strong>{{ r.titre }}</strong>
         <small>{{ r.date }}</small>
       </div>
-      <a class="bouton" [href]="r.fichier" download (click)="telecharger(r)">Télécharger</a>
+      <div class="archive-actions">
+        <a class="bouton-apercu" [href]="r.apercu || r.fichier" target="_blank" rel="noopener">Aperçu</a>
+        <a class="bouton" [href]="r.fichier" download (click)="telecharger(r)">Télécharger</a>
+      </div>
     </article>
   } @empty {
     <p class="vide">Aucune archive dans cette catégorie.</p>

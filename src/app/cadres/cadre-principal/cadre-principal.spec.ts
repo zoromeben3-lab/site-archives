@@ -1,4 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { provideHttpClient } from '@angular/common/http';
 import { CadrePrincipal } from './cadre-principal';
 
 describe('CadrePrincipal', () => {
@@ -8,6 +10,7 @@ describe('CadrePrincipal', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [CadrePrincipal],
+      providers: [provideRouter([]), provideHttpClient()],
     }).compileComponents();
 
     fixture = TestBed.createComponent(CadrePrincipal);

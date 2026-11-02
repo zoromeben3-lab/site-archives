@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Donnees, Module } from '../../services/donnees';
 
@@ -8,7 +8,7 @@ import { Donnees, Module } from '../../services/donnees';
   templateUrl: './gestion-modules.html',
   styleUrl: './gestion-modules.css'
 })
-export class GestionModules {
+export class GestionModules implements OnInit {
   filiereFiltre = 'Toutes';
 
   nom = '';
@@ -19,7 +19,13 @@ export class GestionModules {
   erreur = '';
   succes = '';
 
+  moduleASupprimer: Module | null = null;
+
   constructor(public donnees: Donnees) {}
+
+  ngOnInit() {
+    this.donnees.chargerModulesDepuisApi();
+  }
 
   semestres(): string[] {
     return this.donnees.semestresDe(this.niveau);
@@ -57,21 +63,45 @@ export class GestionModules {
     }
 
     this.erreur = '';
-    this.donnees.ajouterModule({
+    const nouveauModule = {
       nom: this.nom.trim(),
       filiere: this.filiere,
       niveau: this.niveau,
       semestre: this.semestre,
       credits: this.credits
+    };
+
+    this.donnees.ajouterModuleApi(nouveauModule).subscribe({
+      next: () => {
+        this.succes = 'Module ajouté avec succès sur le serveur.';
+        this.nom = '';
+        this.semestre = '';
+      },
+      error: () => {
+        // Fallback local si token ou API indisponible
+        this.donnees.ajouterModule(nouveauModule);
+        this.succes = 'Module ajouté localement.';
+        this.nom = '';
+        this.semestre = '';
+      }
     });
-    this.succes = 'Module ajouté. Il apparaît dans les filtres de la recherche.';
-    this.nom = '';
-    this.semestre = '';
   }
 
-  supprimer(m: Module) {
-    if (confirm(`Supprimer le module « ${m.nom} » ?`)) {
-      this.donnees.supprimerModule(m.id);
-    }
+  demanderSuppression(m: Module) {
+    this.moduleASupprimer = m;
+  }
+
+  annulerSuppression() {
+    this.moduleASupprimer = null;
+  }
+
+  confirmerSuppression() {
+    if (!this.moduleASupprimer) return;
+    const id = this.moduleASupprimer.id;
+    this.moduleASupprimer = null;
+    this.donnees.supprimerModuleApi(id).subscribe({
+      next: () => {},
+      error: () => this.donnees.supprimerModule(id)
+    });
   }
 }

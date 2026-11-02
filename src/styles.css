@@ -15,3 +15,105 @@ textarea::placeholder {
   color: #4b5563;
   opacity: 1;
 }
+
+button,
+input[type="button"],
+input[type="submit"],
+input[type="reset"],
+select,
+.bouton,
+.bouton-apercu,
+[role="button"] {
+  cursor: pointer;
+}
+
+/* Modale de confirmation */
+.fond-modale {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 1000;
+  animation: apparaitre 0.2s ease-out;
+}
+
+.boite-modale {
+  background: white;
+  border-radius: 14px;
+  max-width: 420px;
+  width: 100%;
+  padding: 24px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  text-align: center;
+  animation: zoomer 0.2s ease-out;
+}
+
+.icone-modale {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #fee2e2;
+  color: #dc2626;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+}
+
+.boite-modale h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.boite-modale p {
+  margin: 0 0 20px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #4b5563;
+}
+
+.actions-modale {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.bouton-danger {
+  padding: 11px 20px;
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.bouton-danger:hover {
+  background: #b91c1c;
+}
+
+@keyframes apparaitre {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes zoomer {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

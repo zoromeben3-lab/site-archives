@@ -16,8 +16,10 @@ export interface Archive {
   annee: string;
   date: string;
   fichier: string;
+  apercu?: string;
   description?: string;
 }
+export interface Actualite { id: number; titre: string; texte: string; date: string; auteur?: string; }
 export interface Compte { id: number; prenom: string; nom: string; identifiant: string; role: Role; actif: boolean; }
 export interface Telechargement { titre: string; fichier: string; date: string; }
 
@@ -55,14 +57,17 @@ export class Donnees {
   readonly comptes = signal<Compte[]>(this.lire('comptes', COMPTES_INIT));
   readonly archives = signal<Archive[]>([]);
   readonly programmes = signal<Record<string, string>>({});
+  readonly actualites = signal<Actualite[]>(this.lire('actualites', []));
   private readonly historique = signal<Record<string, Telechargement[]>>(this.lire('telechargements', {}));
 
   constructor(private http: HttpClient, private auth: Authentification) {
     this.chargerModulesDepuisApi();
     this.chargerArchivesDepuisApi();
+    this.chargerComptesDepuisApi();
+    this.chargerActualitesDepuisApi();
   }
 
-  // ---------- Utilitaires de stockage ----------
+  // Stockage local
   private lire<T>(cle: string, defaut: T): T {
     try {
       const texte = localStorage.getItem('donnees.' + cle);
@@ -99,7 +104,7 @@ export class Donnees {
     };
   }
 
-  // ---------- Chargement depuis l'API Laravel ----------
+  // Chargement API
   chargerArchivesDepuisApi() {
     this.http.get<{ status: string; data: { data: Archive[] } }>(`${this.apiUrl}/archives`).subscribe({
       next: (reponse) => {
@@ -131,7 +136,7 @@ export class Donnees {
     });
   }
 
-  // ---------- Modules ----------
+  // Modules
   modulesDeFiliere(filiere: string, niveau = ''): string[] {
     const filiereCherchee = (filiere || '').trim().toLowerCase();
     const niveauCherche = (niveau || '').trim().toLowerCase();
@@ -158,13 +163,25 @@ export class Donnees {
     this.ecrire('modules', liste);
   }
 
+  ajouterModuleApi(m: Omit<Module, 'id'>): Observable<any> {
+    return this.http.post(`${this.apiUrl}/admin/modules`, m, this.obtenirOptionsAuth()).pipe(
+      tap(() => this.chargerModulesDepuisApi())
+    );
+  }
+
   supprimerModule(id: number) {
     const liste = this.modules().filter(m => m.id !== id);
     this.modules.set(liste);
     this.ecrire('modules', liste);
   }
 
-  // ---------- Archives ----------
+  supprimerModuleApi(id: number): Observable<any> {
+    return this.http.delete(`${this.apiUrl}/admin/modules/${id}`, this.obtenirOptionsAuth()).pipe(
+      tap(() => this.chargerModulesDepuisApi())
+    );
+  }
+
+  // Archives
   ajouterArchiveApi(formData: FormData): Observable<any> {
     return this.http.post(`${this.apiUrl}/archives`, formData, this.obtenirOptionsAuth()).pipe(
       tap(() => {
@@ -186,7 +203,7 @@ export class Donnees {
     );
   }
 
-  // ---------- Programmes ----------
+  // Programmes
   private cleProgramme(dossier: string, semestre: string): string {
     return `${dossier}/${semestre.replace('Semestre ', '')}`;
   }
@@ -200,7 +217,20 @@ export class Donnees {
     this.programmes.set({ ...this.programmes(), [this.cleProgramme(dossier, semestre)]: url });
   }
 
-  // ---------- Comptes ----------
+  // Comptes
+  chargerComptesDepuisApi() {
+    if (!this.auth.estConnecte()) return;
+    this.http.get<{ status: string; data: Compte[] }>(`${this.apiUrl}/admin/users`, this.obtenirOptionsAuth()).subscribe({
+      next: (reponse) => {
+        if (reponse.data) {
+          this.comptes.set(reponse.data);
+          this.ecrire('comptes', reponse.data);
+        }
+      },
+      error: (err) => console.error('Erreur chargement comptes:', err)
+    });
+  }
+
   ajouterCompte(c: Omit<Compte, 'id' | 'actif'>): string {
     const existe = this.comptes().some(x => x.identifiant.toLowerCase() === c.identifiant.toLowerCase());
     if (existe) return 'Cet identifiant est déjà utilisé.';
@@ -210,10 +240,28 @@ export class Donnees {
     return '';
   }
 
+  ajouterCompteApi(c: Omit<Compte, 'id' | 'actif'>): Observable<any> {
+    return this.http.post(`${this.apiUrl}/admin/users`, c, this.obtenirOptionsAuth()).pipe(
+      tap(() => this.chargerComptesDepuisApi())
+    );
+  }
+
   changerRole(id: number, role: Role) {
     const liste = this.comptes().map(c => (c.id === id ? { ...c, role } : c));
     this.comptes.set(liste);
     this.ecrire('comptes', liste);
+  }
+
+  changerRoleApi(id: number, role: Role): Observable<any> {
+    return this.http.patch(`${this.apiUrl}/admin/users/${id}`, { role }, this.obtenirOptionsAuth()).pipe(
+      tap(() => this.chargerComptesDepuisApi())
+    );
+  }
+
+  supprimerCompteApi(id: number): Observable<any> {
+    return this.http.delete(`${this.apiUrl}/admin/users/${id}`, this.obtenirOptionsAuth()).pipe(
+      tap(() => this.chargerComptesDepuisApi())
+    );
   }
 
   basculerActif(id: number) {
@@ -222,7 +270,32 @@ export class Donnees {
     this.ecrire('comptes', liste);
   }
 
-  // ---------- Téléchargements ----------
+  // Actualités
+  chargerActualitesDepuisApi() {
+    this.http.get<{ status: string; data: Actualite[] }>(`${this.apiUrl}/actualites`).subscribe({
+      next: (reponse) => {
+        if (reponse.data) {
+          this.actualites.set(reponse.data);
+          this.ecrire('actualites', reponse.data);
+        }
+      },
+      error: (err) => console.error('Erreur chargement actualités:', err)
+    });
+  }
+
+  ajouterActualiteApi(titre: string, texte: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/admin/actualites`, { titre, texte }, this.obtenirOptionsAuth()).pipe(
+      tap(() => this.chargerActualitesDepuisApi())
+    );
+  }
+
+  supprimerActualiteApi(id: number): Observable<any> {
+    return this.http.delete(`${this.apiUrl}/admin/actualites/${id}`, this.obtenirOptionsAuth()).pipe(
+      tap(() => this.chargerActualitesDepuisApi())
+    );
+  }
+
+  // Téléchargements
   private cleUtilisateur(): string {
     const u = this.auth.utilisateur();
     return u ? `${u.prenom} ${u.nom}` : '';

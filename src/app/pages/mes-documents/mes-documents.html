@@ -4,7 +4,7 @@
     <p>Retrouvez les fichiers que vous avez téléchargés.</p>
   </div>
   @if (liste().length) {
-    <button type="button" class="bouton-clair" (click)="vider()">Vider la liste</button>
+    <button type="button" class="bouton-clair" (click)="demanderVider()">Vider la liste</button>
   }
 </section>
 
@@ -24,3 +24,23 @@
     </p>
   }
 </section>
+
+@if (modaleVisible) {
+  <div class="fond-modale" (click)="annulerVider()" role="dialog" aria-modal="true">
+    <div class="boite-modale" (click)="$event.stopPropagation()">
+      <div class="icone-modale">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/>
+          <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+      </div>
+      <h3>Vider la liste</h3>
+      <p>Voulez-vous vraiment effacer tout l'historique de vos documents téléchargés ?</p>
+      <div class="actions-modale">
+        <button type="button" class="bouton-clair" (click)="annulerVider()">Annuler</button>
+        <button type="button" class="bouton-danger" (click)="confirmerVider()">Vider la liste</button>
+      </div>
+    </div>
+  </div>
+}

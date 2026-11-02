@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Authentification, Role } from '../../services/authentification';
 import { Compte, Donnees } from '../../services/donnees';
@@ -9,7 +9,7 @@ import { Compte, Donnees } from '../../services/donnees';
   templateUrl: './gestion-utilisateurs.html',
   styleUrl: './gestion-utilisateurs.css'
 })
-export class GestionUtilisateurs {
+export class GestionUtilisateurs implements OnInit {
   recherche = '';
   roleFiltre = 'Tous';
   formulaireOuvert = false;
@@ -28,6 +28,10 @@ export class GestionUtilisateurs {
   ];
 
   constructor(public donnees: Donnees, private auth: Authentification) {}
+
+  ngOnInit() {
+    this.donnees.chargerComptesDepuisApi();
+  }
 
   liste(): Compte[] {
     const texte = this.recherche.trim().toLowerCase();
@@ -49,7 +53,10 @@ export class GestionUtilisateurs {
 
   changerRole(c: Compte, role: Role) {
     if (this.estMoi(c)) return;
-    this.donnees.changerRole(c.id, role);
+    this.donnees.changerRoleApi(c.id, role).subscribe({
+      next: () => {},
+      error: () => this.donnees.changerRole(c.id, role)
+    });
   }
 
   basculer(c: Compte) {
@@ -68,22 +75,34 @@ export class GestionUtilisateurs {
       return;
     }
 
-    const message = this.donnees.ajouterCompte({
+    this.erreur = '';
+    const nouveauCompte = {
       prenom: this.prenom.trim(),
       nom: this.nom.trim(),
       identifiant: this.identifiant.trim(),
       role: this.role
-    });
-    if (message) {
-      this.erreur = message;
-      return;
-    }
+    };
 
-    this.erreur = '';
-    this.succes = 'Compte créé. Le mot de passe sera défini avec l\'API.';
-    this.prenom = '';
-    this.nom = '';
-    this.identifiant = '';
-    this.role = 'etudiant';
+    this.donnees.ajouterCompteApi(nouveauCompte).subscribe({
+      next: () => {
+        this.succes = 'Compte créé avec succès sur le serveur.';
+        this.prenom = '';
+        this.nom = '';
+        this.identifiant = '';
+        this.role = 'etudiant';
+      },
+      error: () => {
+        const message = this.donnees.ajouterCompte(nouveauCompte);
+        if (message) {
+          this.erreur = message;
+        } else {
+          this.succes = 'Compte créé (mode local).';
+          this.prenom = '';
+          this.nom = '';
+          this.identifiant = '';
+          this.role = 'etudiant';
+        }
+      }
+    });
   }
 }

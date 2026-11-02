@@ -1,6 +1,8 @@
 import { Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { FormsModule } from '@angular/forms';
 import { Authentification, Role } from '../../services/authentification';
+import { Actualite, Donnees } from '../../services/donnees';
 
 const ACCES: Record<Role, { titre: string; detail: string; lien: string }[]> = {
   etudiant: [
@@ -31,33 +33,77 @@ const SOUS_TITRES: Record<Role, string> = {
 
 @Component({
   selector: 'app-tableau-de-bord',
-  imports: [RouterLink],
+  imports: [RouterLink, FormsModule],
   templateUrl: './tableau-de-bord.html',
   styleUrl: './tableau-de-bord.css'
 })
 export class TableauDeBord {
   prenom = '';
   sousTitre = '';
+  estAdmin = false;
   accesRapides: { titre: string; detail: string; lien: string }[] = [];
 
-  actualites = [
-    {
-      titre: 'Mise à jour des archives 2024',
-      texte: 'Les épreuves de la session 1 sont disponibles.',
-      date: '12 mars 2025'
-    },
-    {
-      titre: 'Rappel',
-      texte: 'Les dépôts de fichiers sont ouverts pour les chefs de filière.',
-      date: '5 mars 2025'
-    }
-  ];
+  // Formulaire d'ajout pour l'administrateur
+  formulaireActuOuvert = false;
+  nouveauTitre = '';
+  nouveauTexte = '';
+  erreurActu = '';
+  succesActu = '';
+  actuASupprimer: Actualite | null = null;
 
-  constructor(private auth: Authentification) {
+  constructor(private auth: Authentification, public donnees: Donnees) {
     const u = this.auth.utilisateur();
     const role: Role = u?.role ?? 'etudiant';
+    this.estAdmin = role === 'admin';
     this.prenom = u?.prenom ?? '';
     this.sousTitre = SOUS_TITRES[role];
     this.accesRapides = ACCES[role];
+  }
+
+  get actualites(): Actualite[] {
+    return this.donnees.actualites();
+  }
+
+  publierActu() {
+    this.erreurActu = '';
+    this.succesActu = '';
+
+    if (!this.nouveauTitre.trim() || !this.nouveauTexte.trim()) {
+      this.erreurActu = 'Veuillez saisir un titre et un texte.';
+      return;
+    }
+
+    this.donnees.ajouterActualiteApi(this.nouveauTitre.trim(), this.nouveauTexte.trim()).subscribe({
+      next: () => {
+        this.succesActu = 'Actualité publiée avec succès.';
+        this.nouveauTitre = '';
+        this.nouveauTexte = '';
+        setTimeout(() => {
+          this.succesActu = '';
+          this.formulaireActuOuvert = false;
+        }, 1200);
+      },
+      error: () => {
+        this.erreurActu = 'Une erreur est survenue lors de la publication.';
+      }
+    });
+  }
+
+  demanderSuppressionActu(a: Actualite) {
+    this.actuASupprimer = a;
+  }
+
+  annulerSuppressionActu() {
+    this.actuASupprimer = null;
+  }
+
+  confirmerSuppressionActu() {
+    if (!this.actuASupprimer) return;
+    const id = this.actuASupprimer.id;
+    this.actuASupprimer = null;
+    this.donnees.supprimerActualiteApi(id).subscribe({
+      next: () => {},
+      error: (err) => console.error('Erreur suppression actualité:', err)
+    });
   }
 }
