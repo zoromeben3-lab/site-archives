@@ -59,7 +59,7 @@
         <p class="erreur">{{ erreur }}</p>
       }
 
-      <button type="submit" class="bouton">Créer mon compte</button>
+      <button type="submit" class="bouton" [disabled]="chargement">Créer mon compte</button>
     </form>
 
     <p class="pied">Vous avez déjà un compte ? <a routerLink="/connexion">Se connecter</a></p>

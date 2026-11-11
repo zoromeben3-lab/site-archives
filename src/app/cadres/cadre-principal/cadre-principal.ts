@@ -1,6 +1,7 @@
 import { Component } from '@angular/core';
 import { Router, RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { Authentification, Role } from '../../services/authentification';
+import { Donnees } from '../../services/donnees';
 
 const MENUS: Record<Role, { texte: string; lien: string }[]> = {
   etudiant: [
@@ -46,7 +47,7 @@ export class CadrePrincipal {
   utilisateur = { nom: '', role: '', initiales: '' };
   menu: { texte: string; lien: string }[] = [];
 
-  constructor(private auth: Authentification, private router: Router) {
+  constructor(private auth: Authentification, private router: Router, private donnees: Donnees) {
     const u = this.auth.utilisateur();
     if (u) {
       this.utilisateur.nom = `${u.prenom} ${u.nom}`;
@@ -57,7 +58,9 @@ export class CadrePrincipal {
   }
 
   deconnexion() {
+    this.auth.seDeconnecterApi().subscribe({ error: () => {} });
     this.auth.deconnecter();
+    this.donnees.reinitialiser();
     this.router.navigate(['/connexion']);
   }
 }

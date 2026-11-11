@@ -18,6 +18,8 @@ export class GestionUtilisateurs implements OnInit {
   nom = '';
   identifiant = '';
   role: Role = 'etudiant';
+  filiere = '';
+  motDePasseTemp = '';
   erreur = '';
   succes = '';
 
@@ -48,20 +50,26 @@ export class GestionUtilisateurs implements OnInit {
   // On ne peut pas modifier son propre compte (évite de se retirer ses droits)
   estMoi(c: Compte): boolean {
     const u = this.auth.utilisateur();
-    return !!u && u.prenom === c.prenom && u.nom === c.nom;
+    return !!u && u.id === c.id;
   }
 
   changerRole(c: Compte, role: Role) {
     if (this.estMoi(c)) return;
+    this.erreur = '';
     this.donnees.changerRoleApi(c.id, role).subscribe({
-      next: () => {},
-      error: () => this.donnees.changerRole(c.id, role)
+      error: (err) => {
+        this.erreur = err.error?.message ?? 'Changement de rôle impossible.';
+        this.donnees.chargerComptesDepuisApi(); // remet la liste dans l'état réel
+      }
     });
   }
 
   basculer(c: Compte) {
     if (this.estMoi(c)) return;
-    this.donnees.basculerActif(c.id);
+    this.erreur = '';
+    this.donnees.basculerActifApi(c).subscribe({
+      error: (err) => this.erreur = err.error?.message ?? 'Modification impossible.'
+    });
   }
 
   ajouter() {
@@ -75,33 +83,34 @@ export class GestionUtilisateurs implements OnInit {
       return;
     }
 
+    if (this.role === 'chef' && !this.filiere) {
+      this.erreur = 'Choisissez la filière du chef de filière.';
+      return;
+    }
+
     this.erreur = '';
+    this.motDePasseTemp = '';
     const nouveauCompte = {
       prenom: this.prenom.trim(),
       nom: this.nom.trim(),
       identifiant: this.identifiant.trim(),
-      role: this.role
+      role: this.role,
+      filiere: this.role === 'chef' ? this.filiere : undefined
     };
 
     this.donnees.ajouterCompteApi(nouveauCompte).subscribe({
-      next: () => {
-        this.succes = 'Compte créé avec succès sur le serveur.';
+      next: (r) => {
+        this.succes = 'Compte créé. Communiquez ce mot de passe temporaire à l\'utilisateur : il ne sera plus affiché.';
+        this.motDePasseTemp = r.mot_de_passe_temporaire;
         this.prenom = '';
         this.nom = '';
         this.identifiant = '';
         this.role = 'etudiant';
+        this.filiere = '';
       },
-      error: () => {
-        const message = this.donnees.ajouterCompte(nouveauCompte);
-        if (message) {
-          this.erreur = message;
-        } else {
-          this.succes = 'Compte créé (mode local).';
-          this.prenom = '';
-          this.nom = '';
-          this.identifiant = '';
-          this.role = 'etudiant';
-        }
+      error: (err) => {
+        const erreurs = err.error?.errors ? Object.values(err.error.errors).flat() as string[] : [];
+        this.erreur = erreurs[0] ?? err.error?.message ?? 'Création impossible. Vérifiez la connexion au serveur.';
       }
     });
   }

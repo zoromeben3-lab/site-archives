@@ -1,7 +1,8 @@
 import { Injectable, signal } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { Authentification, Role } from './authentification';
 import { Observable, tap } from 'rxjs';
+import { API_URL } from '../config';
 
 export interface Filiere { nom: string; dossier: string; }
 export interface Module { id: number; nom: string; filiere: string; niveau: string; semestre: string; credits: number; }
@@ -20,21 +21,15 @@ export interface Archive {
   description?: string;
 }
 export interface Actualite { id: number; titre: string; texte: string; date: string; auteur?: string; }
-export interface Compte { id: number; prenom: string; nom: string; identifiant: string; role: Role; actif: boolean; }
+export interface Compte { id: number; prenom: string; nom: string; identifiant: string; role: Role; actif: boolean; filiere_id?: number | null; }
 export interface Telechargement { titre: string; fichier: string; date: string; }
-
-const COMPTES_INIT: Compte[] = [
-  { id: 1, prenom: 'Aïssatou', nom: 'Diallo', identifiant: 'etudiant', role: 'etudiant', actif: true },
-  { id: 2, prenom: 'Moussa', nom: 'Traoré', identifiant: 'chef.info', role: 'chef', actif: true },
-  { id: 3, prenom: 'Fatou', nom: 'Ouattara', identifiant: 'admin', role: 'admin', actif: true },
-  { id: 4, prenom: 'Ibrahim', nom: 'Kaboré', identifiant: 'i.kabore', role: 'etudiant', actif: true },
-  { id: 5, prenom: 'Aminata', nom: 'Sanogo', identifiant: 'a.sanogo', role: 'etudiant', actif: true }
-];
+export interface NouveauCompte { prenom: string; nom: string; identifiant: string; role: Role; filiere?: string; }
 
 @Injectable({ providedIn: 'root' })
 export class Donnees {
-  private apiUrl = 'http://127.0.0.1:8000/api';
+  private apiUrl = API_URL;
 
+  // Listes fixes (référentiel de l'interface)
   readonly filieres: Filiere[] = [
     { nom: 'Génie Informatique', dossier: 'genie-informatique' },
     { nom: 'Réseaux et systèmes', dossier: 'reseaux-systemes' },
@@ -52,271 +47,217 @@ export class Donnees {
   readonly types = ['Devoir', 'Test', 'Épreuve de session'];
   readonly annees = ['2024 - 2025', '2023 - 2024'];
 
-  // Signals Angular réactifs
-  readonly modules = signal<Module[]>(this.lire('modules', []));
-  readonly comptes = signal<Compte[]>(this.lire('comptes', COMPTES_INIT));
+  // Données venant de l'API (aucune donnée n'est gardée dans le navigateur)
+  readonly modules = signal<Module[]>([]);
+  readonly comptes = signal<Compte[]>([]);
   readonly archives = signal<Archive[]>([]);
-  readonly programmes = signal<Record<string, string>>({});
-  readonly actualites = signal<Actualite[]>(this.lire('actualites', []));
-  private readonly historique = signal<Record<string, Telechargement[]>>(this.lire('telechargements', {}));
+  readonly actualites = signal<Actualite[]>([]);
+  readonly telechargements = signal<Telechargement[]>([]);
+  private readonly programmes = signal<Record<string, string>>({});
 
   constructor(private http: HttpClient, private auth: Authentification) {
+    this.chargerTout();
+  }
+
+  // Tout est réservé aux connectés : on ne charge qu'avec une session ouverte
+  private chargerTout() {
+    if (!this.auth.estConnecte()) return;
     this.chargerModulesDepuisApi();
     this.chargerArchivesDepuisApi();
-    this.chargerComptesDepuisApi();
     this.chargerActualitesDepuisApi();
+    this.chargerProgrammesDepuisApi();
+    this.chargerComptesDepuisApi();
+    this.chargerTelechargementsDepuisApi();
   }
 
-  // Stockage local
-  private lire<T>(cle: string, defaut: T): T {
-    try {
-      const texte = localStorage.getItem('donnees.' + cle);
-      return texte ? JSON.parse(texte) : defaut;
-    } catch {
-      return defaut;
-    }
-  }
-
-  private ecrire(cle: string, valeur: unknown) {
-    try {
-      localStorage.setItem('donnees.' + cle, JSON.stringify(valeur));
-    } catch {
-      /* ignore */
-    }
-  }
-
-  private prochainId(liste: { id: number }[]): number {
-    return liste.reduce((max, x) => Math.max(max, x.id), 0) + 1;
-  }
-
-  private aujourdhui(): string {
-    return new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+  // À la déconnexion : aucune donnée ne reste en mémoire pour le compte suivant
+  reinitialiser() {
+    this.modules.set([]);
+    this.comptes.set([]);
+    this.archives.set([]);
+    this.actualites.set([]);
+    this.telechargements.set([]);
+    this.programmes.set({});
   }
 
   semestresDe(niveau: string): string[] {
     return this.semestresParNiveau[niveau] ?? [];
   }
 
-  private obtenirOptionsAuth() {
-    const jeton = this.auth.jeton();
-    return {
-      headers: new HttpHeaders(jeton ? { Authorization: `Bearer ${jeton}` } : {})
-    };
-  }
-
-  // Chargement API
+  // ---------- Archives ----------
   chargerArchivesDepuisApi() {
-    this.http.get<{ status: string; data: { data: Archive[] } }>(`${this.apiUrl}/archives`).subscribe({
-      next: (reponse) => {
-        if (reponse.data && reponse.data.data) {
-          this.archives.set(reponse.data.data);
-        }
-      },
+    this.http.get<{ data: { data: Archive[] } }>(`${this.apiUrl}/archives`).subscribe({
+      next: (r) => this.archives.set(r.data?.data ?? []),
       error: (err) => console.error('Erreur chargement archives:', err)
     });
   }
 
-  chargerModulesDepuisApi() {
-    this.http.get<{ status: string; data: any[] }>(`${this.apiUrl}/modules`).subscribe({
-      next: (reponse) => {
-        if (reponse.data) {
-          const formates: Module[] = reponse.data.map(m => ({
-            id: m.id,
-            nom: m.nom,
-            filiere: m.filiere?.nom ?? '',
-            niveau: m.niveau?.intitule ?? m.niveau?.code ?? '',
-            semestre: 'Semestre 1',
-            credits: 6
-          }));
-          this.modules.set(formates);
-          this.ecrire('modules', formates);
-        }
-      },
-      error: (err) => console.error('Erreur chargement modules:', err)
-    });
-  }
-
-  // Modules
-  modulesDeFiliere(filiere: string, niveau = ''): string[] {
-    const filiereCherchee = (filiere || '').trim().toLowerCase();
-    const niveauCherche = (niveau || '').trim().toLowerCase();
-
-    return this.modules()
-      .filter(m => {
-        const nomFiliere = (m.filiere || '').trim().toLowerCase();
-        const nomNiveau = (m.niveau || '').trim().toLowerCase();
-
-        const filiereOk = !filiereCherchee || nomFiliere === filiereCherchee;
-        const niveauOk = !niveauCherche || nomNiveau === niveauCherche ||
-          (niveauCherche.includes('1') && nomNiveau.includes('1')) ||
-          (niveauCherche.includes('2') && nomNiveau.includes('2')) ||
-          (niveauCherche.includes('3') && nomNiveau.includes('3'));
-
-        return filiereOk && niveauOk;
-      })
-      .map(m => m.nom);
-  }
-
-  ajouterModule(m: Omit<Module, 'id'>) {
-    const liste = [...this.modules(), { ...m, id: this.prochainId(this.modules()) }];
-    this.modules.set(liste);
-    this.ecrire('modules', liste);
-  }
-
-  ajouterModuleApi(m: Omit<Module, 'id'>): Observable<any> {
-    return this.http.post(`${this.apiUrl}/admin/modules`, m, this.obtenirOptionsAuth()).pipe(
-      tap(() => this.chargerModulesDepuisApi())
-    );
-  }
-
-  supprimerModule(id: number) {
-    const liste = this.modules().filter(m => m.id !== id);
-    this.modules.set(liste);
-    this.ecrire('modules', liste);
-  }
-
-  supprimerModuleApi(id: number): Observable<any> {
-    return this.http.delete(`${this.apiUrl}/admin/modules/${id}`, this.obtenirOptionsAuth()).pipe(
-      tap(() => this.chargerModulesDepuisApi())
-    );
-  }
-
-  // Archives
   ajouterArchiveApi(formData: FormData): Observable<any> {
-    return this.http.post(`${this.apiUrl}/archives`, formData, this.obtenirOptionsAuth()).pipe(
-      tap(() => {
-        this.chargerArchivesDepuisApi();
-      })
-    );
-  }
-
-  ajouterArchive(a: Omit<Archive, 'id' | 'date'>) {
-    this.archives.set([
-      { ...a, id: this.prochainId(this.archives()), date: this.aujourdhui() },
-      ...this.archives()
-    ]);
-  }
-
-  supprimerArchiveApi(id: number): Observable<any> {
-    return this.http.delete(`${this.apiUrl}/archives/${id}`, this.obtenirOptionsAuth()).pipe(
+    return this.http.post(`${this.apiUrl}/archives`, formData).pipe(
       tap(() => this.chargerArchivesDepuisApi())
     );
   }
 
-  // Programmes
-  private cleProgramme(dossier: string, semestre: string): string {
-    return `${dossier}/${semestre.replace('Semestre ', '')}`;
+  supprimerArchiveApi(id: number): Observable<any> {
+    return this.http.delete(`${this.apiUrl}/archives/${id}`).pipe(
+      tap(() => this.chargerArchivesDepuisApi())
+    );
   }
 
-  urlProgramme(dossier: string, semestre: string): string {
-    const ajoute = this.programmes()[this.cleProgramme(dossier, semestre)];
-    return ajoute ?? `/programmes/${dossier}/semestre-${semestre.replace('Semestre ', '')}.jpg`;
+  // Le fichier exige une connexion : on le récupère avec le jeton, puis on l'ouvre ou on l'enregistre.
+  private recupererFichier(a: { fichier: string }): Observable<Blob> {
+    return this.http.get(a.fichier, { responseType: 'blob' });
   }
 
-  ajouterProgramme(dossier: string, semestre: string, url: string) {
-    this.programmes.set({ ...this.programmes(), [this.cleProgramme(dossier, semestre)]: url });
-  }
-
-  // Comptes
-  chargerComptesDepuisApi() {
-    if (!this.auth.estConnecte()) return;
-    this.http.get<{ status: string; data: Compte[] }>(`${this.apiUrl}/admin/users`, this.obtenirOptionsAuth()).subscribe({
-      next: (reponse) => {
-        if (reponse.data) {
-          this.comptes.set(reponse.data);
-          this.ecrire('comptes', reponse.data);
-        }
+  telechargerFichier(a: { titre: string; fichier: string }) {
+    this.recupererFichier(a).subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        const lien = document.createElement('a');
+        lien.href = url;
+        lien.download = a.titre;
+        lien.click();
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+        this.chargerTelechargementsDepuisApi();
       },
+      error: (err) => alert(err.status === 404
+        ? 'Le fichier est introuvable sur le serveur.'
+        : 'Téléchargement impossible. Vérifiez votre connexion.')
+    });
+  }
+
+  apercuFichier(a: { fichier: string }) {
+    // Onglet ouvert tout de suite (sinon bloqué par le navigateur), rempli à l'arrivée du fichier
+    const onglet = window.open('', '_blank');
+    this.recupererFichier(a).subscribe({
+      next: (blob) => {
+        if (onglet) onglet.location.href = URL.createObjectURL(blob);
+      },
+      error: () => onglet?.close()
+    });
+  }
+
+  // ---------- Modules ----------
+  chargerModulesDepuisApi() {
+    this.http.get<{ data: any[] }>(`${this.apiUrl}/modules`).subscribe({
+      next: (r) => this.modules.set((r.data ?? []).map(m => ({
+        id: m.id,
+        nom: m.nom,
+        filiere: m.filiere?.nom ?? '',
+        niveau: m.niveau?.intitule ?? m.niveau?.code ?? '',
+        semestre: m.semestre ?? '',
+        credits: m.credits ?? 6
+      }))),
+      error: (err) => console.error('Erreur chargement modules:', err)
+    });
+  }
+
+  modulesDeFiliere(filiere: string, niveau = ''): string[] {
+    const f = (filiere || '').trim().toLowerCase();
+    const n = (niveau || '').trim().toLowerCase();
+    return this.modules()
+      .filter(m => (!f || m.filiere.trim().toLowerCase() === f) && (!n || m.niveau.trim().toLowerCase() === n))
+      .map(m => m.nom);
+  }
+
+  ajouterModuleApi(m: Omit<Module, 'id'>): Observable<any> {
+    return this.http.post(`${this.apiUrl}/admin/modules`, m).pipe(tap(() => this.chargerModulesDepuisApi()));
+  }
+
+  supprimerModuleApi(id: number): Observable<any> {
+    return this.http.delete(`${this.apiUrl}/admin/modules/${id}`).pipe(tap(() => this.chargerModulesDepuisApi()));
+  }
+
+  // ---------- Programmes ----------
+  private cleProgramme(nomFiliere: string, numeroSemestre: string): string {
+    return `${nomFiliere}/${numeroSemestre.replace('Semestre ', '')}`;
+  }
+
+  chargerProgrammesDepuisApi() {
+    this.http.get<{ data: { filiere: string; semestre: number; url: string }[] }>(`${this.apiUrl}/programmes`).subscribe({
+      next: (r) => {
+        const table: Record<string, string> = {};
+        (r.data ?? []).forEach(p => (table[this.cleProgramme(p.filiere, String(p.semestre))] = p.url));
+        this.programmes.set(table);
+      },
+      error: (err) => console.error('Erreur chargement programmes:', err)
+    });
+  }
+
+  // Image envoyée par un chef/admin, sinon image par défaut du dossier public/programmes
+  urlProgramme(dossier: string, semestre: string): string {
+    const nom = this.filieres.find(f => f.dossier === dossier)?.nom ?? '';
+    return this.programmes()[this.cleProgramme(nom, semestre)]
+      ?? `/programmes/${dossier}/semestre-${semestre.replace('Semestre ', '')}.jpg`;
+  }
+
+  ajouterProgrammeApi(dossier: string, semestre: string, image: File): Observable<any> {
+    const nom = this.filieres.find(f => f.dossier === dossier)?.nom ?? '';
+    const donnees = new FormData();
+    donnees.append('filiere', nom);
+    donnees.append('semestre', semestre.replace('Semestre ', ''));
+    donnees.append('image', image);
+    return this.http.post(`${this.apiUrl}/programmes`, donnees).pipe(tap(() => this.chargerProgrammesDepuisApi()));
+  }
+
+  // ---------- Comptes (admin) ----------
+  chargerComptesDepuisApi() {
+    if (this.auth.role() !== 'admin' || !this.auth.estConnecte()) return;
+    this.http.get<{ data: Compte[] }>(`${this.apiUrl}/admin/users`).subscribe({
+      next: (r) => this.comptes.set(r.data ?? []),
       error: (err) => console.error('Erreur chargement comptes:', err)
     });
   }
 
-  ajouterCompte(c: Omit<Compte, 'id' | 'actif'>): string {
-    const existe = this.comptes().some(x => x.identifiant.toLowerCase() === c.identifiant.toLowerCase());
-    if (existe) return 'Cet identifiant est déjà utilisé.';
-    const liste = [...this.comptes(), { ...c, id: this.prochainId(this.comptes()), actif: true }];
-    this.comptes.set(liste);
-    this.ecrire('comptes', liste);
-    return '';
-  }
-
-  ajouterCompteApi(c: Omit<Compte, 'id' | 'actif'>): Observable<any> {
-    return this.http.post(`${this.apiUrl}/admin/users`, c, this.obtenirOptionsAuth()).pipe(
+  ajouterCompteApi(c: NouveauCompte): Observable<{ mot_de_passe_temporaire: string; data: Compte }> {
+    return this.http.post<{ mot_de_passe_temporaire: string; data: Compte }>(`${this.apiUrl}/admin/users`, c).pipe(
       tap(() => this.chargerComptesDepuisApi())
     );
-  }
-
-  changerRole(id: number, role: Role) {
-    const liste = this.comptes().map(c => (c.id === id ? { ...c, role } : c));
-    this.comptes.set(liste);
-    this.ecrire('comptes', liste);
   }
 
   changerRoleApi(id: number, role: Role): Observable<any> {
-    return this.http.patch(`${this.apiUrl}/admin/users/${id}`, { role }, this.obtenirOptionsAuth()).pipe(
-      tap(() => this.chargerComptesDepuisApi())
-    );
+    return this.http.patch(`${this.apiUrl}/admin/users/${id}`, { role }).pipe(tap(() => this.chargerComptesDepuisApi()));
+  }
+
+  basculerActifApi(c: Compte): Observable<any> {
+    return this.http.patch(`${this.apiUrl}/admin/users/${c.id}`, { actif: !c.actif }).pipe(tap(() => this.chargerComptesDepuisApi()));
   }
 
   supprimerCompteApi(id: number): Observable<any> {
-    return this.http.delete(`${this.apiUrl}/admin/users/${id}`, this.obtenirOptionsAuth()).pipe(
-      tap(() => this.chargerComptesDepuisApi())
-    );
+    return this.http.delete(`${this.apiUrl}/admin/users/${id}`).pipe(tap(() => this.chargerComptesDepuisApi()));
   }
 
-  basculerActif(id: number) {
-    const liste = this.comptes().map(c => (c.id === id ? { ...c, actif: !c.actif } : c));
-    this.comptes.set(liste);
-    this.ecrire('comptes', liste);
-  }
-
-  // Actualités
+  // ---------- Actualités ----------
   chargerActualitesDepuisApi() {
-    this.http.get<{ status: string; data: Actualite[] }>(`${this.apiUrl}/actualites`).subscribe({
-      next: (reponse) => {
-        if (reponse.data) {
-          this.actualites.set(reponse.data);
-          this.ecrire('actualites', reponse.data);
-        }
-      },
+    this.http.get<{ data: Actualite[] }>(`${this.apiUrl}/actualites`).subscribe({
+      next: (r) => this.actualites.set(r.data ?? []),
       error: (err) => console.error('Erreur chargement actualités:', err)
     });
   }
 
   ajouterActualiteApi(titre: string, texte: string): Observable<any> {
-    return this.http.post(`${this.apiUrl}/admin/actualites`, { titre, texte }, this.obtenirOptionsAuth()).pipe(
-      tap(() => this.chargerActualitesDepuisApi())
-    );
+    return this.http.post(`${this.apiUrl}/admin/actualites`, { titre, texte }).pipe(tap(() => this.chargerActualitesDepuisApi()));
   }
 
   supprimerActualiteApi(id: number): Observable<any> {
-    return this.http.delete(`${this.apiUrl}/admin/actualites/${id}`, this.obtenirOptionsAuth()).pipe(
-      tap(() => this.chargerActualitesDepuisApi())
-    );
+    return this.http.delete(`${this.apiUrl}/admin/actualites/${id}`).pipe(tap(() => this.chargerActualitesDepuisApi()));
   }
 
-  // Téléchargements
-  private cleUtilisateur(): string {
-    const u = this.auth.utilisateur();
-    return u ? `${u.prenom} ${u.nom}` : '';
+  // ---------- Mes téléchargements ----------
+  chargerTelechargementsDepuisApi() {
+    if (!this.auth.estConnecte()) { this.telechargements.set([]); return; }
+    this.http.get<{ data: Telechargement[] }>(`${this.apiUrl}/moi/telechargements`).subscribe({
+      next: (r) => this.telechargements.set(r.data ?? []),
+      error: (err) => console.error('Erreur chargement téléchargements:', err)
+    });
   }
 
-  mesTelechargements(): Telechargement[] {
-    return this.historique()[this.cleUtilisateur()] ?? [];
+  viderTelechargementsApi(): Observable<any> {
+    return this.http.delete(`${this.apiUrl}/moi/telechargements`).pipe(tap(() => this.telechargements.set([])));
   }
 
-  enregistrerTelechargement(titre: string, fichier: string) {
-    const cle = this.cleUtilisateur();
-    if (!cle) return;
-    const deja = (this.historique()[cle] ?? []).filter(t => t.fichier !== fichier || t.titre !== titre);
-    const tout = { ...this.historique(), [cle]: [{ titre, fichier, date: this.aujourdhui() }, ...deja] };
-    this.historique.set(tout);
-    this.ecrire('telechargements', tout);
-  }
-
-  viderTelechargements() {
-    const tout = { ...this.historique(), [this.cleUtilisateur()]: [] };
-    this.historique.set(tout);
-    this.ecrire('telechargements', tout);
+  // À appeler après connexion / déconnexion : recharge ce qui dépend du compte
+  rechargerApresConnexion() {
+    this.chargerTout();
   }
 }

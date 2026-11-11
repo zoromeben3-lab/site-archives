@@ -20,6 +20,7 @@ export class AjoutProgramme {
   survol = false;
   erreur = '';
   succes = '';
+  chargement = false;
 
   readonly extensionsOk = ['jpg', 'jpeg', 'png'];
   readonly tailleMax = 5 * 1024 * 1024; // 5 Mo
@@ -87,14 +88,21 @@ export class AjoutProgramme {
     }
 
     this.erreur = '';
-    // Sans serveur, l'image reste en mémoire jusqu'au rechargement de la page.
-    // Avec l'API, elle sera envoyée au back-end ici.
-    this.donnees.ajouterProgramme(this.dossier, this.semestre, this.apercu);
-    this.succes = `Programme du ${this.semestre} enregistré.`;
-    this.dossier = '';
-    this.niveau = '';
-    this.semestre = '';
-    this.fichier = null;
-    this.apercu = '';
+    this.chargement = true;
+    this.donnees.ajouterProgrammeApi(this.dossier, this.semestre, this.fichier).subscribe({
+      next: () => {
+        this.chargement = false;
+        this.succes = `Programme du ${this.semestre} enregistré.`;
+        this.dossier = '';
+        this.niveau = '';
+        this.semestre = '';
+        this.retirerFichier();
+      },
+      error: (err) => {
+        this.chargement = false;
+        const erreurs = err.error?.errors ? Object.values(err.error.errors).flat() as string[] : [];
+        this.erreur = erreurs[0] ?? err.error?.message ?? 'Envoi impossible. Vérifiez la connexion au serveur.';
+      }
+    });
   }
 }

@@ -15,7 +15,7 @@
         <strong>{{ d.titre }}</strong>
         <small>Téléchargé le {{ d.date }}</small>
       </div>
-      <a class="bouton" [href]="d.fichier" download>Télécharger à nouveau</a>
+      <button type="button" class="bouton" (click)="retelecharger(d)">Télécharger à nouveau</button>
     </article>
   } @empty {
     <p class="vide">

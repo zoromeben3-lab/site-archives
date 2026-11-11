@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Authentification } from '../../services/authentification';
+import { Donnees } from '../../services/donnees';
 
 @Component({
   selector: 'app-connexion',
@@ -17,7 +18,7 @@ export class Connexion {
   afficherMdp = false;
   chargement = false;
 
-  constructor(private router: Router, private auth: Authentification) {}
+  constructor(private router: Router, private auth: Authentification, private donnees: Donnees) {}
 
   basculerMdp() {
     this.afficherMdp = !this.afficherMdp;
@@ -36,6 +37,7 @@ export class Connexion {
     this.auth.seConnecterApi(this.identifiant, this.mdp, this.souvenir).subscribe({
       next: (reponse) => {
         this.chargement = false;
+        this.donnees.rechargerApresConnexion();
         // Connexion réussie -> Redirection vers le tableau de bord
         this.router.navigate(['/tableau-de-bord']);
       },

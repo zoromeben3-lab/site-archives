@@ -77,12 +77,9 @@ export class GestionModules implements OnInit {
         this.nom = '';
         this.semestre = '';
       },
-      error: () => {
-        // Fallback local si token ou API indisponible
-        this.donnees.ajouterModule(nouveauModule);
-        this.succes = 'Module ajouté localement.';
-        this.nom = '';
-        this.semestre = '';
+      error: (err) => {
+        const erreurs = err.error?.errors ? Object.values(err.error.errors).flat() as string[] : [];
+        this.erreur = erreurs[0] ?? err.error?.message ?? 'Ajout impossible. Vérifiez la connexion au serveur.';
       }
     });
   }
@@ -100,8 +97,7 @@ export class GestionModules implements OnInit {
     const id = this.moduleASupprimer.id;
     this.moduleASupprimer = null;
     this.donnees.supprimerModuleApi(id).subscribe({
-      next: () => {},
-      error: () => this.donnees.supprimerModule(id)
+      error: (err) => this.erreur = err.error?.message ?? 'Suppression impossible.'
     });
   }
 }

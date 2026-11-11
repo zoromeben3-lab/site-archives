@@ -16,6 +16,8 @@ class Module extends Model
         'niveau_id',
         'nom',
         'code',
+        'semestre',
+        'credits',
     ];
 
     // Le module appartient à une filière.

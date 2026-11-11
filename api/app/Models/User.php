@@ -19,6 +19,7 @@ class User extends Authenticatable
         'password',
         'role',
         'filiere_id',
+        'actif',
     ];
 
     protected $hidden = [
@@ -31,6 +32,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'actif' => 'boolean',
         ];
     }
 
@@ -69,5 +71,22 @@ class User extends Authenticatable
     public function isEtudiant(): bool
     {
         return $this->role === 'etudiant';
+    }
+
+    // Format attendu par le front Angular (prenom / nom / identifiant / role « chef »).
+    public function versFront(): array
+    {
+        $parties = explode(' ', $this->name, 2);
+
+        return [
+            'id' => $this->id,
+            'prenom' => $parties[0] ?? '',
+            'nom' => $parties[1] ?? '',
+            'identifiant' => strstr($this->email, '@', true) ?: $this->email,
+            'email' => $this->email,
+            'role' => $this->role === 'chef_filiere' ? 'chef' : $this->role,
+            'actif' => (bool) $this->actif,
+            'filiere_id' => $this->filiere_id,
+        ];
     }
 }

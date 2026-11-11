@@ -26,7 +26,9 @@ export class MonProfil {
   erreur = '';
   succes = '';
 
-  constructor(auth: Authentification) {
+  chargement = false;
+
+  constructor(private auth: Authentification) {
     const u = auth.utilisateur();
     if (u) {
       this.prenom = u.prenom;
@@ -56,10 +58,20 @@ export class MonProfil {
     }
 
     this.erreur = '';
-    // Plus tard : envoi à l'API, qui vérifiera l'ancien mot de passe côté serveur.
-    this.succes = 'Vérifications réussies. Le changement sera enregistré quand l\'API sera branchée.';
-    this.ancien = '';
-    this.nouveau = '';
-    this.confirmation = '';
+    this.chargement = true;
+    this.auth.changerMotDePasse(this.ancien, this.nouveau).subscribe({
+      next: (r) => {
+        this.chargement = false;
+        this.succes = r.message;
+        this.ancien = '';
+        this.nouveau = '';
+        this.confirmation = '';
+      },
+      error: (err) => {
+        this.chargement = false;
+        const erreurs = err.error?.errors ? Object.values(err.error.errors).flat() as string[] : [];
+        this.erreur = erreurs[0] ?? err.error?.message ?? 'Impossible de joindre le serveur.';
+      }
+    });
   }
 }

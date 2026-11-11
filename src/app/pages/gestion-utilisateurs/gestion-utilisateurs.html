@@ -37,17 +37,36 @@
       </div>
     </div>
 
+    @if (role === 'chef') {
+      <div class="champ">
+        <label for="filiere">Filière</label>
+        <select id="filiere" name="filiere" [(ngModel)]="filiere">
+          <option value="">Choisir la filière</option>
+          @for (f of donnees.filieres; track f.dossier) {
+            <option [value]="f.nom">{{ f.nom }}</option>
+          }
+        </select>
+      </div>
+    }
+
     @if (erreur) {
       <p class="erreur">{{ erreur }}</p>
     }
     @if (succes) {
       <p class="succes">{{ succes }}</p>
     }
+    @if (motDePasseTemp) {
+      <p class="succes"><strong>Mot de passe temporaire : {{ motDePasseTemp }}</strong></p>
+    }
 
     <div class="actions">
       <button type="submit" class="bouton">Créer le compte</button>
     </div>
   </form>
+}
+
+@if (erreur && !formulaireOuvert) {
+  <p class="erreur">{{ erreur }}</p>
 }
 
 <section class="bloc">

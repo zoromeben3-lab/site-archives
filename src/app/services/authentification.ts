@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
+import { API_URL } from '../config';
 
 export type Role = 'etudiant' | 'chef' | 'admin';
 
@@ -30,7 +31,7 @@ interface ReponseLogin {
 
 @Injectable({ providedIn: 'root' })
 export class Authentification {
-  private apiUrl = 'http://127.0.0.1:8000/api';
+  private apiUrl = API_URL;
   private cleUtilisateur = 'utilisateur';
   private cleJeton = 'jeton_acces';
 
@@ -44,23 +45,41 @@ export class Authentification {
       identifiant: identifiant.trim(),
       mdp: mdp
     }).pipe(
-      tap(reponse => {
-        // En cas de succès retourné par Laravel, on stocke le token et l'utilisateur
-        const stockage = souvenir ? localStorage : sessionStorage;
-        this.deconnecter();
-
-        stockage.setItem(this.cleUtilisateur, JSON.stringify({
-          id: reponse.user.id,
-          prenom: reponse.user.prenom,
-          nom: reponse.user.nom,
-          role: reponse.user.role,
-          email: reponse.user.email,
-          filiere_id: reponse.user.filiere_id
-        }));
-
-        stockage.setItem(this.cleJeton, reponse.access_token);
-      })
+      tap(reponse => this.ouvrirSession(reponse, souvenir))
     );
+  }
+
+  // Stocke le jeton et l'utilisateur après une connexion ou une inscription
+  private ouvrirSession(reponse: ReponseLogin, souvenir: boolean) {
+    const stockage = souvenir ? localStorage : sessionStorage;
+    this.deconnecter();
+
+    stockage.setItem(this.cleUtilisateur, JSON.stringify({
+      id: reponse.user.id,
+      prenom: reponse.user.prenom,
+      nom: reponse.user.nom,
+      role: reponse.user.role,
+      email: reponse.user.email,
+      filiere_id: reponse.user.filiere_id
+    }));
+
+    stockage.setItem(this.cleJeton, reponse.access_token);
+  }
+
+  // Crée le compte étudiant puis ouvre directement la session
+  inscrire(donnees: { prenom: string; nom: string; identifiant: string; mdp: string; filiere?: string }): Observable<ReponseLogin> {
+    return this.http.post<ReponseLogin>(`${this.apiUrl}/register`, donnees).pipe(
+      tap(reponse => this.ouvrirSession(reponse, false))
+    );
+  }
+
+  changerMotDePasse(ancien: string, nouveau: string): Observable<{ message: string }> {
+    return this.http.put<{ message: string }>(`${this.apiUrl}/password`, { ancien, nouveau });
+  }
+
+  // Ferme aussi la session côté serveur (révoque le jeton), puis nettoie le navigateur.
+  seDeconnecterApi(): Observable<unknown> {
+    return this.http.post(`${this.apiUrl}/logout`, {});
   }
 
   utilisateur(): Utilisateur | null {

@@ -11,10 +11,16 @@ import { Donnees, Telechargement } from '../../services/donnees';
 export class MesDocuments {
   modaleVisible = false;
 
-  constructor(private donnees: Donnees) {}
+  constructor(private donnees: Donnees) {
+    this.donnees.chargerTelechargementsDepuisApi();
+  }
+
+  retelecharger(d: Telechargement) {
+    this.donnees.telechargerFichier(d);
+  }
 
   liste(): Telechargement[] {
-    return this.donnees.mesTelechargements();
+    return this.donnees.telechargements();
   }
 
   demanderVider() {
@@ -26,7 +32,7 @@ export class MesDocuments {
   }
 
   confirmerVider() {
-    this.donnees.viderTelechargements();
+    this.donnees.viderTelechargementsApi().subscribe();
     this.modaleVisible = false;
   }
 }

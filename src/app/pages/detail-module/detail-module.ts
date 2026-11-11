@@ -24,6 +24,10 @@ export class DetailModule {
   }
 
   telecharger(a: Archive) {
-    this.donnees.enregistrerTelechargement(a.titre, a.fichier);
+    this.donnees.telechargerFichier(a);
+  }
+
+  apercu(a: Archive) {
+    this.donnees.apercuFichier(a);
   }
 }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use App\Models\Filiere;
 use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
@@ -38,6 +39,12 @@ class AuthController extends Controller
             return response()->json([
                 'message' => 'Identifiant ou mot de passe incorrect.',
             ], 401);
+        }
+
+        if (! $user->actif) {
+            return response()->json([
+                'message' => 'Ce compte est désactivé. Contactez un administrateur.',
+            ], 403);
         }
 
         // 4. Création du Token Sanctum
@@ -112,5 +119,77 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'Déconnexion réussie. Le jeton d’accès a été révoqué.',
         ], 200);
+    }
+
+    /**
+     * Inscription ouverte : crée TOUJOURS un compte étudiant (le rôle n'est jamais choisi par le client).
+     * Endpoint : POST /api/register
+     */
+    public function register(Request $request): JsonResponse
+    {
+        $request->validate([
+            'prenom' => 'required|string|max:50',
+            'nom' => 'required|string|max:50',
+            'identifiant' => ['required', 'string', 'min:3', 'max:30', 'regex:/^[a-zA-Z0-9._-]+$/'],
+            'mdp' => 'required|string|min:8|max:100',
+            'filiere' => 'nullable|string|max:100',
+        ], [
+            'identifiant.regex' => 'Identifiant : lettres, chiffres, point, tiret ou souligné uniquement.',
+            'mdp.min' => 'Le mot de passe doit contenir au moins 8 caractères.',
+        ]);
+
+        $email = strtolower(trim($request->identifiant)) . '@u-auben.bf';
+
+        if (User::where('email', $email)->exists()) {
+            return response()->json(['message' => 'Cet identifiant est déjà utilisé.'], 409);
+        }
+
+        $user = User::create([
+            'name' => trim($request->prenom) . ' ' . trim($request->nom),
+            'email' => $email,
+            'password' => Hash::make($request->mdp),
+            'role' => 'etudiant',
+            'filiere_id' => $request->filled('filiere')
+                ? Filiere::where('nom', $request->filiere)->value('id')
+                : null,
+        ]);
+
+        // Connexion automatique : même format de réponse que /login
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        return response()->json([
+            'message' => 'Compte créé avec succès.',
+            'access_token' => $token,
+            'token_type' => 'Bearer',
+            'user' => $user->versFront() + ['name' => $user->name],
+        ], 201);
+    }
+
+    /**
+     * Changement du mot de passe de l'utilisateur connecté.
+     * Endpoint : PUT /api/password
+     */
+    public function changerMotDePasse(Request $request): JsonResponse
+    {
+        $request->validate([
+            'ancien' => 'required|string',
+            'nouveau' => 'required|string|min:8|max:100|different:ancien',
+        ], [
+            'nouveau.min' => 'Le nouveau mot de passe doit contenir au moins 8 caractères.',
+            'nouveau.different' => "Le nouveau mot de passe doit être différent de l'ancien.",
+        ]);
+
+        $user = $request->user();
+
+        if (! Hash::check($request->ancien, $user->password)) {
+            return response()->json(['message' => 'Ancien mot de passe incorrect.'], 422);
+        }
+
+        $user->update(['password' => $request->nouveau]); // haché par le cast « hashed »
+
+        // Révoque les autres sessions, garde celle en cours
+        $user->tokens()->where('id', '!=', $user->currentAccessToken()->id)->delete();
+
+        return response()->json(['message' => 'Mot de passe modifié avec succès.']);
     }
 }

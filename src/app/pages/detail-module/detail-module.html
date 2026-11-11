@@ -20,8 +20,8 @@
         <small>{{ r.date }}</small>
       </div>
       <div class="archive-actions">
-        <a class="bouton-apercu" [href]="r.apercu || r.fichier" target="_blank" rel="noopener">Aperçu</a>
-        <a class="bouton" [href]="r.fichier" download (click)="telecharger(r)">Télécharger</a>
+        <button type="button" class="bouton-apercu" (click)="apercu(r)">Aperçu</button>
+        <button type="button" class="bouton" (click)="telecharger(r)">Télécharger</button>
       </div>
     </article>
   } @empty {

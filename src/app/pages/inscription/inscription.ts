@@ -1,6 +1,8 @@
 import { Component } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { Authentification } from '../../services/authentification';
+import { Donnees } from '../../services/donnees';
 
 @Component({
   selector: 'app-inscription',
@@ -17,6 +19,9 @@ export class Inscription {
   mdp = '';
   mdp2 = '';
   erreur = '';
+  chargement = false;
+
+  constructor(private auth: Authentification, private router: Router, private donnees: Donnees) {}
 
   creerCompte() {
     // 1. Champs vides
@@ -46,6 +51,26 @@ export class Inscription {
     }
 
     this.erreur = '';
-    console.log('Formulaire valide');
+    this.chargement = true;
+    const filiere = this.donnees.filieres.find(f => f.dossier === this.filiere)?.nom ?? this.filiere;
+
+    this.auth.inscrire({
+      prenom: this.prenom.trim(),
+      nom: this.nom.trim(),
+      identifiant: this.identifiant.trim(),
+      mdp: this.mdp,
+      filiere
+    }).subscribe({
+      next: () => {
+        this.chargement = false;
+        this.donnees.rechargerApresConnexion();
+        this.router.navigate(['/tableau-de-bord']);
+      },
+      error: (err) => {
+        this.chargement = false;
+        const erreurs = err.error?.errors ? Object.values(err.error.errors).flat() as string[] : [];
+        this.erreur = erreurs[0] ?? err.error?.message ?? 'Impossible de joindre le serveur.';
+      }
+    });
   }
 }

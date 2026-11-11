@@ -15,6 +15,21 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ArchiveController extends Controller
 {
+    // Valeur en base => libellé affiché par le front Angular
+    private const TYPES_FRONT = [
+        'devoir' => 'Devoir',
+        'test' => 'Test',
+        'examen' => 'Épreuve de session',
+        'autre' => 'Autre',
+    ];
+
+    private static function typeVersBase(string $type): string
+    {
+        $t = mb_strtolower(trim($type));
+
+        return (str_contains($t, 'session') || str_contains($t, 'preuve')) ? 'examen' : $t;
+    }
+
     /**
      * Liste et recherche paginée des archives.
      * Compatible avec le composant RechercheArchives d'Angular.
@@ -63,7 +78,7 @@ class ArchiveController extends Controller
 
         // Filtre par type d'épreuve (en ignorant 'Tous')
         $query->when($request->filled('type') && $request->type !== 'Tous', function ($q) use ($request) {
-            $q->where('type', $request->type);
+            $q->where('type', self::typeVersBase($request->type));
         });
 
         // Recherche textuelle sur le titre ou la description
@@ -287,7 +302,7 @@ class ArchiveController extends Controller
             'id' => $a->id,
             'titre' => $a->titre,
             'description' => $a->description,
-            'type' => $a->type,
+            'type' => self::TYPES_FRONT[$a->type] ?? ucfirst($a->type),
             'filiere' => $a->module?->filiere?->nom ?? '',
             'filiere_id' => $a->module?->filiere_id,
             'module' => $a->module?->nom ?? '',
@@ -296,7 +311,7 @@ class ArchiveController extends Controller
             'niveau_id' => $a->module?->niveau_id,
             'annee' => $a->anneeAcademique?->annee ?? '',
             'annee_academique_id' => $a->annee_academique_id,
-            'date' => $a->created_at ? $a->created_at->format('d M. Y') : '',
+            'date' => $a->created_at ? $a->created_at->format('d/m/Y') : '',
             'fichier' => url("/api/archives/{$a->id}/download"),
             'downloads_count' => $a->downloads_count,
             'user' => $a->user ? [
